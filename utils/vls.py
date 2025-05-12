@@ -10,3 +10,4 @@ def draw_bbox(ax, img, annot):
         xmin, ymin, xmax, ymax = bbox
         rect = Rectangle((xmin, ymin), width=xmax-xmin, height=ymax-ymin, facecolor='none', edgecolor='r')
         ax.add_patch(rect)
+        
