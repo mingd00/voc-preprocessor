@@ -4,9 +4,10 @@ import torch
 from torch.utils.data import Dataset
 
 class PascalVoc2007Dataset(Dataset):
-    def __init__(self, dataset_path, dataset_type='train'):
+    def __init__(self, dataset_path, dataset_type='train', transform=None):
         self.dataset_path = dataset_path
         self.dataset_type = dataset_type
+        self.transform = transform 
         
         self._set_paths()
         self._load_ids()
@@ -35,6 +36,10 @@ class PascalVoc2007Dataset(Dataset):
 
         img = Image.open(img_file)
         annot = torch.load(annot_file, weights_only=False)
+        
+        if self.transform:
+            img, annot = self.transform(img, annot)
+            
         return img, annot
         
     def __len__(self):
