@@ -45,12 +45,65 @@ class PascalVoc2007Dataset(Dataset):
     def __len__(self):
         return len(self.ids)
     
+class PascalVoc2007Yolov1Dataset(PascalVoc2007Dataset):
+    def __init__(self, dataset_path, dataset_type='train', transform=None):
+        super().__init__(dataset_path, dataset_type, transform)
+        self.S = 7
+        self.C = 20
+        self.B = 2
+    
+    def _transform_bboxes(self, img, annot):
+        bboxes = annot['boxes']
+        bboxes_ = bboxes.clone()
+        bboxes_[:, 0] = (bboxes[:, 0] + bboxes[:, 2]) / 2
+        bboxes_[:, 1] = (bboxes[:, 1] + bboxes[:, 3]) / 2
+        bboxes_[:, 2] = bboxes[:, 2] - bboxes[:, 0]
+        bboxes_[:, 3] = bboxes[:, 3] - bboxes[:, 1]
+        bboxes = bboxes_
+
+        # calculate relative coordinates
+        S = 7
+        _, H, W = img.shape
+        cell_H, cell_W = H / S, W / S
+        x_center_rel = bboxes_[:, 0] / cell_W
+        x_center_loc = bboxes_[:, 0] // cell_W
+
+        bboxes[:, 0] = x_center_rel - x_center_loc
+        y_center_rel = bboxes[:, 1] / cell_H
+        y_center_loc = bboxes_[:, 1] // cell_H
+
+        bboxes[:, 1] = y_center_rel - y_center_loc
+        bboxes[:, 2] /= W
+        bboxes[:, 3] /= H
+        
+        annot['boxes'] = bboxes
+        return annot, x_center_loc, y_center_loc
+    
+    def __getitem__(self, sample_idx):
+        img, annot = super().__getitem__(sample_idx)
+        annot, x_center_loc, y_center_loc = self._transform_bboxes(img, annot)
+        labels, bboxes = annot['labels'], annot['boxes']
+        
+        depth = self.C + self.B * 5
+        gt = torch.zeros(self.S, self.S, depth)
+        gt[y_center_loc.long(), x_center_loc.long(), labels.long()] = 1 # 그 클래스에 해당하는 부분만 1로 바꿔라, x랑 y 순서 주의 
+        
+        n_bboxes = len(bboxes)
+        bboxes = torch.hstack([bboxes, torch.ones(size=(n_bboxes, 1))])
+        bboxes = torch.hstack([bboxes for _ in range(self.B)])
+        
+        gt[y_center_loc.long(), x_center_loc.long(), self.C:] = bboxes
+        
+        return img, gt
+
+
 if __name__ == "__main__":
     train_ds = PascalVoc2007Dataset('.', 'train')
     img, annot = train_ds[0]
-    print(img.size)
-    print(annot)
+    # print(img.size)
+    # print(annot)
     # val_ds = PascalVoc2007Dataset(dataset_path, 'val')
     # test_ds = PascalVoc2007Dataset(dataset_path, 'test')
+
     
     
